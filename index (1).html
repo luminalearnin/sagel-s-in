@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Vanguard Command</title>
+<link rel="preconnect" href="https://www.gstatic.com" crossorigin>
+<link rel="preconnect" href="https://firestore.googleapis.com" crossorigin>
+<link rel="modulepreload" href="https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js">
+<link rel="modulepreload" href="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js">
+<link rel="modulepreload" href="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js">
+<style>
+:root{--bg:#0b0f19;--card:#131b2e;--bd:#1e293b;--tx:#f8fafc;--mu:#8091ab;--bl:#2563eb;--gr:#10b981;--rd:#dc2626;--ye:#f59e0b;box-sizing:border-box}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--tx);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;min-height:100vh;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+.wrap{max-width:960px;margin:0 auto;padding:16px}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:20px;margin-bottom:16px}
+h1,h2,h3{margin:0 0 10px}h1{font-size:1.25rem}h2{font-size:1.05rem}h3{font-size:.92rem}
+p{color:var(--mu);font-size:.88rem;line-height:1.5;margin:0 0 12px}
+label{display:block;font-size:.7rem;color:var(--mu);margin:12px 0 5px;text-transform:uppercase;letter-spacing:.5px}
+input,select,textarea{width:100%;padding:11px;background:var(--bg);border:1px solid var(--bd);color:var(--tx);border-radius:8px;font:inherit;font-size:.95rem}
+button{padding:10px 14px;background:var(--bl);color:#fff;border:0;border-radius:8px;font-weight:600;cursor:pointer;font-size:.85rem}
+button.sec{background:transparent;border:1px solid var(--bd);color:var(--tx)}
+button.ok{background:var(--gr)}button.no{background:var(--rd)}button.sm{padding:5px 9px;font-size:.75rem;margin:2px}
+button:disabled{opacity:.5}
+.row{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
+.scroll{overflow-x:auto}
+table{width:100%;border-collapse:collapse}
+th,td{padding:9px;text-align:left;border-bottom:1px solid var(--bd);font-size:.82rem;white-space:nowrap}
+th{color:var(--mu);font-size:.68rem;text-transform:uppercase}td.w{white-space:normal;min-width:200px}
+.banner{background:rgba(245,158,11,.1);border:1px solid var(--ye);color:var(--ye);padding:10px 14px;border-radius:8px;font-size:.84rem;font-weight:600;margin-bottom:14px}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:14px}
+.stat{background:var(--bg);border:1px solid var(--bd);border-radius:10px;padding:12px}
+.stat b{display:block;font-size:1.35rem}.stat span{font-size:.68rem;color:var(--mu);text-transform:uppercase}
+.bar{height:8px;background:var(--bd);border-radius:6px;overflow:hidden;margin:6px 0 4px}.bar i{display:block;height:100%;background:var(--gr)}
+.tabs{display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap}
+.tag{display:inline-block;padding:2px 8px;border-radius:20px;font-size:.68rem;font-weight:700;background:rgba(128,145,171,.18);color:var(--mu)}
+.tag.g{background:rgba(16,185,129,.15);color:var(--gr)}.tag.y{background:rgba(245,158,11,.15);color:var(--ye)}.tag.r{background:rgba(220,38,38,.15);color:var(--rd)}
+.err{color:var(--rd);font-size:.84rem;margin-top:10px;min-height:1em}.good{color:var(--gr)}
+details{font-size:.84rem;color:var(--mu)}summary{cursor:pointer;font-weight:600;color:var(--tx);margin-bottom:8px}
+details li{margin:4px 0}
+@media(max-width:560px){.card{padding:15px}}
+</style>
+</head>
+<body>
+<div class="wrap" id="app"><div class="card"><h1>Vanguard Command</h1><p>Loading…</p></div></div>
+<script type="module">
+import {initializeApp} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import {getAuth,onAuthStateChanged,signInWithEmailAndPassword,createUserWithEmailAndPassword,signOut} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import {getFirestore,doc,getDoc,setDoc,addDoc,updateDoc,collection,query,where,orderBy,limit,onSnapshot,serverTimestamp} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+const firebaseConfig={apiKey:"AIzaSyCEASnUp9m6dwSZluQmVPCBN21Jj4GcW0k",authDomain:"vanguard-command-b498c.firebaseapp.com",projectId:"vanguard-command-b498c",storageBucket:"vanguard-command-b498c.firebasestorage.app",messagingSenderId:"677985130363",appId:"1:677985130363:web:9798c202b857c770db0fde"};
+const fb=initializeApp(firebaseConfig),auth=getAuth(fb),db=getFirestore(fb);
+const ADMIN_EMAIL="ceo@vanguard-admin.app",DOMAIN="@staff.vanguard-command.app",IST=19800000;
+const DEF={quota:25,dailyCap:40,deadlineHour:17,pitchCap:15,targets:{research:125,sales:60}};
+let S=JSON.parse(JSON.stringify(DEF));
+
+const ROLES={
+research:{label:"Lead Research",types:{lead:{label:"Verified lead",fields:[["business","Business name","text",1],["owner","Owner / manager","text",0],["contact","Phone / email (verified)","text",1],["website","Website status (None or broken URL)","text",1],["pain","Pain point note","textarea",1]]}}},
+sales:{label:"Sales & Closing",types:{pitch:{label:"Qualified pitch",fields:[["business","Business / client","text",1],["channel","Channel","select",1,["Call","Email","WhatsApp"]],["notes","Notes","textarea",0]]},call_booked:{label:"Discovery call booked",fields:[["business","Business / client","text",1],["when","Call date & time","text",1],["notes","Notes","textarea",0]]},client_closed:{label:"Paying client closed",fields:[["business","Client","text",1],["value","Deal value","text",0],["notes","Notes","textarea",0]]}}},
+dev:{label:"Web Development",types:{site:{label:"Website delivered",fields:[["business","Client","text",1],["url","Live URL","text",1],["deadline","Agreed deadline","date",1],["notes","Notes","textarea",0]]}}}
+};
+const $=i=>document.getElementById(i);
+const esc=s=>String(s==null?"":s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const slug=n=>n.toLowerCase().replace(/[^a-z0-9]+/g,".").replace(/^\.+|\.+$/g,"");
+const istOf=ms=>{const d=new Date(ms+IST);return{date:d.toISOString().slice(0,10),hour:d.getUTCHours()}};
+const weekOf=ms=>{const d=new Date(ms+IST);d.setUTCDate(d.getUTCDate()-((d.getUTCDay()+6)%7));return d.toISOString().slice(0,10)};
+const addD=(s,n)=>{const d=new Date(s+"T00:00:00Z");d.setUTCDate(d.getUTCDate()+n);return d.toISOString().slice(0,10)};
+const weekEndMs=w=>Date.parse(w+"T00:00:00Z")-IST+7*864e5;
+const fmtT=ms=>new Date(ms+IST).toISOString().replace("T"," ").slice(0,19)+" IST";
+const mapE=d=>{const x=d.data({serverTimestamps:"estimate"});const ms=x.ts?x.ts.toMillis():Date.now();const t=istOf(ms);return{id:d.id,uid:x.uid,name:x.name,role:x.role,type:x.type,data:x.data||{},ms:ms,date:t.date,hour:t.hour,week:weekOf(ms),status:x.status,converted:!!x.converted,bugs:x.bugs||0,deadline:x.deadline||""}};
+const mapA=d=>{const x=d.data({serverTimestamps:"estimate"});return Object.assign({id:d.id},x,{ms:x.ts?x.ts.toMillis():Date.now()})};
+const view=h=>{$("app").innerHTML=h};
+const head=(sub,btn)=>`<div class="row" style="margin-bottom:14px"><div><h1>🛡️ Vanguard Command</h1><span style="font-size:.8rem;color:var(--mu)">${sub}</span></div>${btn||""}</div>`;
+let cur=null,prof=null,unsubs=[];
+const clearSubs=()=>{unsubs.forEach(f=>f());unsubs=[]};
+window.logout=()=>signOut(auth);
+
+/* ---------- Scoring ---------- */
+function scoreUser(role,es,adjs,closedCount){
+  let pts=0;const days={};
+  es.forEach(e=>{(days[e.date]=days[e.date]||[]).push(e)});
+  Object.keys(days).forEach(d=>{
+    const L=days[d];
+    if(role==="research"){
+      let on=0,late=0,wrong=0,conv=0;
+      L.forEach(e=>{if(e.type!=="lead")return;if(e.status==="wrong")wrong++;else if(e.hour<S.deadlineHour)on++;else late++;if(e.converted&&e.status!=="wrong")conv++});
+      const cOn=Math.min(on,S.dailyCap),cLate=Math.min(late,Math.max(0,S.dailyCap-cOn));
+      pts+=cOn+cLate*.5-wrong*2+(on>=S.quota?5:0)+conv*10;
+    }else if(role==="sales"){
+      let pitch=0;
+      L.forEach(e=>{
+        if(e.type==="pitch"){if(e.status==="fake")pts-=5;else pitch++}
+        else if(e.type==="call_booked"){pts+=(e.status==="fake"||e.status==="missed")?-5:3}
+        else if(e.type==="client_closed"){if(e.status==="confirmed")pts+=25;else if(e.status==="cancelled")pts-=15}
+      });
+      pts+=Math.min(pitch,S.pitchCap);
+    }else{
+      L.forEach(e=>{if(e.type!=="site"||e.status!=="accepted")return;
+        const onTime=!e.deadline||e.date<=e.deadline;pts+=(onTime?20:10)-5*e.bugs});
+    }
+  });
+  adjs.forEach(a=>{pts+=Number(a.points)||0});
+  pts=Math.max(0,Math.round(pts*10)/10);
+  const target=role==="dev"?(closedCount?closedCount*20:null):(S.targets[role]||null);
+  return{points:pts,target:target,pct:target?Math.min(120,Math.round(pts/target*100)):null};
+}
+function computeRows(week,users,entries,adjs){
+  const closed=entries.filter(e=>e.week===week&&e.type==="client_closed"&&e.status==="confirmed").length;
+  return users.filter(u=>u.status==="approved").map(u=>{
+    const r=scoreUser(u.role,entries.filter(e=>e.uid===u.id&&e.week===week),adjs.filter(a=>a.uid===u.id&&a.week===week),closed);
+    return{uid:u.id,name:u.name,role:u.role,points:r.points,target:r.target,pct:r.pct,n:entries.filter(e=>e.uid===u.id&&e.week===week).length};
+  });
+}
+function rankHtml(rows,meId){
+  let h="";
+  Object.keys(ROLES).forEach(r=>{
+    const g=rows.filter(x=>x.role===r).sort((a,b)=>b.points-a.points);if(!g.length)return;
+    h+=`<h3 style="margin-top:14px">${ROLES[r].label}</h3><div class="scroll"><table><thead><tr><th>#</th><th>Name</th><th>Points</th><th>Target</th><th>Score</th></tr></thead><tbody>${g.map((x,i)=>`<tr><td>${i===0?"🏆":i+1}</td><td><b>${esc(x.name)}${x.uid===meId?" (you)":""}</b></td><td>${x.points}</td><td>${x.target==null?"—":x.target}</td><td>${x.pct==null?"—":x.pct+"%"}</td></tr>`).join("")}</tbody></table></div>`;
+  });
+  return h||"<p>No results yet.</p>";
+}
+
+/* ---------- Auth screens ---------- */
+let mode="login";
+function authScreen(msg){
+  const reg=mode==="register";
+  view(`<div class="card" style="max-width:420px;margin:40px auto"><h1>🛡️ Vanguard Command</h1><p>${reg?"Create your account with your real full name. Vijay approves every account; unrecognised names are declined.":"Sign in with your full name and password."}</p>
+  <label>Full name</label><input id="an" autocomplete="name" placeholder="e.g. Arjun Chetry">
+  <label>Password</label><input id="ap" type="password" autocomplete="${reg?"new-password":"current-password"}" placeholder="At least 6 characters">
+  ${reg?`<label>Confirm password</label><input id="ap2" type="password" autocomplete="new-password"><label>Your role</label><select id="ar">${Object.keys(ROLES).map(k=>`<option value="${k}">${ROLES[k].label}</option>`).join("")}</select>`:""}
+  <div style="margin-top:16px;display:flex;gap:8px"><button id="ab" onclick="${reg?"doRegister()":"doLogin()"}">${reg?"Request access":"Sign in"}</button><button class="sec" onclick="setMode('${reg?"login":"register"}')">${reg?"I have an account":"New here? Register"}</button></div>
+  <div class="err" id="ae">${esc(msg||"")}</div></div>`);
+}
+window.setMode=m=>{mode=m;authScreen()};
+const authErr=e=>{const c=e&&e.code||"";
+  if(c==="auth/email-already-in-use")return"This name is already registered. Sign in instead.";
+  if(c==="auth/invalid-credential"||c==="auth/wrong-password"||c==="auth/user-not-found"||c==="auth/invalid-login-credentials")return"Incorrect name or password.";
+  if(c==="auth/weak-password")return"Password must be at least 6 characters.";
+  if(c==="auth/too-many-requests")return"Too many attempts. Wait a few minutes and retry.";
+  if(c==="auth/network-request-failed")return"No internet connection.";
+  return"Something went wrong. Please try again."};
+window.doLogin=async()=>{
+  const n=$("an").value.trim(),p=$("ap").value;
+  if(!n||!p){$("ae").textContent="Enter your name and password.";return}
+  $("ab").disabled=true;
+  const s=slug(n),email=s==="pram"?ADMIN_EMAIL:s+DOMAIN;
+  try{await signInWithEmailAndPassword(auth,email,p)}catch(e){$("ae").textContent=authErr(e);$("ab").disabled=false}
+};
+window.doRegister=async()=>{
+  const n=$("an").value.trim().replace(/\s+/g," "),p=$("ap").value,p2=$("ap2").value,r=$("ar").value,s=slug(n),er=$("ae");
+  if(n.split(" ").length<2||!/^[A-Za-z][A-Za-z .'-]+$/.test(n)||n.length>60){er.textContent="Enter your real first and last name (letters only).";return}
+  if(["pram","vijay","admin","ceo"].includes(s)){er.textContent="This name is reserved.";return}
+  if(p.length<6){er.textContent="Password must be at least 6 characters.";return}
+  if(p!==p2){er.textContent="Passwords do not match.";return}
+  $("ab").disabled=true;
+  try{
+    const c=await createUserWithEmailAndPassword(auth,s+DOMAIN,p);
+    await setDoc(doc(db,"users",c.user.uid),{name:n,role:r,status:"pending",createdAt:serverTimestamp()});
+  }catch(e){er.textContent=authErr(e);$("ab").disabled=false}
+};
+
+onAuthStateChanged(auth,async u=>{
+  clearSubs();cur=u;prof=null;
+  if(!u){authScreen();return}
+  if(u.email===ADMIN_EMAIL){startAdmin();return}
+  view('<div class="card"><p>Loading…</p></div>');
+  unsubs.push(onSnapshot(doc(db,"users",u.uid),s=>{
+    if(!s.exists()){view(`<div class="card"><h1>Setting up…</h1><p>If this takes more than a few seconds, sign out and register again.</p><button class="sec" onclick="logout()">Sign out</button></div>`);return}
+    prof=s.data();
+    if(prof.status==="approved"){if(!$("empRoot"))startEmployee()}
+    else if(prof.status==="rejected")view(`<div class="card"><h1>Access denied</h1><p>Your request was not approved. Contact Vijay.</p><button class="sec" onclick="logout()">Sign out</button></div>`);
+    else view(`<div class="card"><h1>Request sent</h1><p>Hi ${esc(prof.name)}, your account is pending approval by Vijay. This page updates automatically once approved.</p><button class="sec" onclick="logout()">Sign out</button></div>`);
+  },()=>view('<div class="card"><p>Could not load. Check your connection and refresh.</p></div>')));
+});
+
+/* ---------- Employee ---------- */
+let E={entries:[],adjs:[],results:[],ctype:null};
+function startEmployee(){
+  const R=ROLES[prof.role],types=Object.keys(R.types);E.ctype=types[0];
+  view(`<div id="empRoot">${head(esc(prof.name)+" · "+R.label,'<button class="sec" onclick="logout()">Sign out</button>')}
+  <div class="banner" id="eb"></div>
+  <div class="stats"><div class="stat"><b id="sT">–</b><span>Today</span></div><div class="stat"><b id="sW">–</b><span>This week</span></div><div class="stat"><b id="sL">–</b><span>After 5 PM</span></div></div>
+  <div class="card" id="qCard" style="padding:14px;display:none"><div class="row"><b>Daily quota (before 5 PM IST)</b><span id="qt" style="font-size:.85rem;color:var(--mu)"></span></div><div class="bar"><i id="qb" style="width:0"></i></div></div>
+  <div class="card"><h2>Submit entry</h2>${types.length>1?`<label>Type</label><select id="etype" onchange="setType(this.value)">${types.map(t=>`<option value="${t}">${R.types[t].label}</option>`).join("")}</select>`:""}<div id="ff"></div><div style="margin-top:16px"><button id="sb" onclick="submitEntry()">Submit</button></div><div class="err" id="se"></div></div>
+  <div class="card"><h2>Weekly results</h2><div id="resSel"></div><div class="scroll" id="res"><p>Results appear after each week ends.</p></div></div>
+  <div class="card"><h2>My recent entries</h2><div class="scroll" id="hist"></div></div>
+  <div class="card" id="adjCard" style="display:none"><h2>Score adjustments</h2><div class="scroll" id="adjs"></div></div>
+  <div class="card"><details><summary>How scoring works</summary><ul style="padding-left:18px;margin:0">${scoringHelp(prof.role)}<li>Weekly score = points ÷ your weekly target (max 120%). Results are published each Monday (IST).</li><li>Every penalty needs a reason and you can dispute it within 48 hours.</li></ul></details></div></div>`);
+  setType(E.ctype);
+  unsubs.push(onSnapshot(query(collection(db,"entries"),where("uid","==",cur.uid)),s=>{E.entries=s.docs.map(mapE);empUpdate()}));
+  unsubs.push(onSnapshot(query(collection(db,"adjustments"),where("uid","==",cur.uid)),s=>{E.adjs=s.docs.map(mapA).sort((a,b)=>b.ms-a.ms);empUpdate()}));
+  unsubs.push(onSnapshot(query(collection(db,"results"),orderBy("week","desc"),limit(8)),s=>{E.results=s.docs.map(d=>d.data());empUpdate()}));
+  unsubs.push(onSnapshot(doc(db,"config","settings"),s=>{if(s.exists())S=Object.assign(JSON.parse(JSON.stringify(DEF)),s.data());empUpdate()}));
+}
+function scoringHelp(r){
+  if(r==="research")return`<li>+1 per lead submitted before ${S.deadlineHour}:00 IST, +0.5 after.</li><li>−2 for each lead found to have wrong data.</li><li>+5 on each day you reach ${S.quota} leads before ${S.deadlineHour}:00 IST.</li><li>+10 when one of your leads becomes a paying client.</li><li>Counted leads are capped at ${S.dailyCap} per day.</li>`;
+  if(r==="sales")return`<li>+1 per qualified pitch (max ${S.pitchCap}/day), +3 per discovery call booked, +25 per paying client confirmed by Vijay.</li><li>−5 for a missed call or an entry proven fake. −15 if a closed deal is cancelled because of a broken promise.</li>`;
+  return`<li>+20 per website delivered and accepted on time, +10 if late.</li><li>−5 per real bug found within 7 days (not scope changes).</li><li>Your target equals Mayank's confirmed deals that week.</li>`;
+}
+window.setType=t=>{
+  E.ctype=t;const f=ROLES[prof.role].types[t].fields;
+  $("ff").innerHTML=f.map(x=>{const id="f_"+x[0],req=x[3]?" *":"";
+    const inp=x[2]==="select"?`<select id="${id}">${x[4].map(o=>`<option>${o}</option>`).join("")}</select>`:x[2]==="textarea"?`<textarea id="${id}" rows="2"></textarea>`:`<input id="${id}" type="${x[2]}">`;
+    return`<label>${esc(x[1])}${req}</label>${inp}`}).join("");
+};
+const tagFor=s=>({wrong:["r","Wrong data"],fake:["r","Flagged fake"],missed:["r","Missed"],cancelled:["r","Cancelled"],confirmed:["g","Confirmed"],accepted:["g","Accepted"],rejected:["r","Rejected"]}[s]||["","Submitted"]);
+function empUpdate(){
+  if(!$("empRoot"))return;
+  const now=Date.now(),wk=weekOf(now),td=istOf(now).date,R=prof.role;
+  $("eb").textContent="⏳ Week of "+wk+" (IST). Results are published at the end of the week. Daily deadline: "+S.deadlineHour+":00 IST.";
+  const we=E.entries.filter(e=>e.week===wk),today=we.filter(e=>e.date===td);
+  $("sT").textContent=today.length;$("sW").textContent=we.length;$("sL").textContent=we.filter(e=>e.hour>=S.deadlineHour).length;
+  if(R==="research"){$("qCard").style.display="";const on=today.filter(e=>e.status!=="wrong"&&e.hour<S.deadlineHour).length;$("qt").textContent=on+" / "+S.quota;$("qb").style.width=Math.min(100,on/S.quota*100)+"%"}
+  $("hist").innerHTML=`<table><thead><tr><th>Time (IST)</th><th>Entry</th><th>Status</th></tr></thead><tbody>${E.entries.sort((a,b)=>b.ms-a.ms).slice(0,12).map(e=>{const t=tagFor(e.status);return`<tr><td>${fmtT(e.ms)}</td><td class="w">${esc(Object.values(e.data).filter(Boolean).join(" · "))}</td><td><span class="tag ${t[0]}">${t[1]}</span></td></tr>`}).join("")}</tbody></table>`;
+  if(E.adjs.length){$("adjCard").style.display="";
+    $("adjs").innerHTML=`<table><thead><tr><th>When</th><th>Points</th><th>Reason</th><th>Dispute</th></tr></thead><tbody>${E.adjs.slice(0,15).map(a=>`<tr><td>${fmtT(a.ms)}</td><td><b>${a.points>0?"+":""}${a.points}</b></td><td class="w">${esc(a.reason)}</td><td class="w">${a.dispute?esc(a.dispute):(now-a.ms<48*36e5?`<button class="sm sec" onclick="dispute('${a.id}')">Dispute</button>`:"—")}</td></tr>`).join("")}</tbody></table>`}
+  const sel=$("resSel");
+  if(E.results.length){
+    if(!E.rw||!E.results.find(r=>r.week===E.rw))E.rw=E.results[0].week;
+    sel.innerHTML=`<select id="rw" onchange="E.rw=this.value;empUpdate()">${E.results.map(r=>`<option value="${r.week}"${r.week===E.rw?" selected":""}>Week of ${r.week}</option>`).join("")}</select>`;
+    $("res").innerHTML=rankHtml(E.results.find(r=>r.week===E.rw).rows,cur.uid);
+  }
+}
+window.E=E;window.empUpdate=empUpdate;
+window.dispute=async id=>{const t=prompt("Why do you disagree with this adjustment?");if(!t||!t.trim())return;try{await updateDoc(doc(db,"adjustments",id),{dispute:t.trim().slice(0,300)})}catch(e){alert("Could not send dispute.")}};
+async function sha(s){const b=await crypto.subtle.digest("SHA-256",new TextEncoder().encode(s));return Array.from(new Uint8Array(b)).map(x=>x.toString(16).padStart(2,"0")).join("").slice(0,40)}
+window.submitEntry=async()=>{
+  const t=E.ctype,R=ROLES[prof.role],f=R.types[t].fields,data={},er=$("se");er.className="err";er.textContent="";
+  for(const x of f){const v=$("f_"+x[0]).value.trim();if(x[3]&&!v){er.textContent="Please fill: "+x[1];return}data[x[0]]=v.slice(0,300)}
+  $("sb").disabled=true;
+  try{
+    let keyRef=null;
+    if(prof.role==="research"){
+      keyRef=doc(db,"keys",await sha((data.business+"|"+data.contact).toLowerCase().replace(/[^a-z0-9|]/g,"")));
+      if((await getDoc(keyRef)).exists()){er.textContent="Duplicate: this business was already submitted.";$("sb").disabled=false;return}
+    }
+    await addDoc(collection(db,"entries"),{uid:cur.uid,name:prof.name,role:prof.role,type:t,data:data,ts:serverTimestamp(),status:"submitted",converted:false,bugs:0,deadline:data.deadline||""});
+    if(keyRef)try{await setDoc(keyRef,{by:cur.uid})}catch(e){}
+    f.forEach(x=>{const el=$("f_"+x[0]);el.value=x[2]==="select"?x[4][0]:""});
+    er.className="err good";er.textContent="Submitted ✔";
+  }catch(e){er.textContent="Could not submit. Check your connection and try again."}
+  $("sb").disabled=false;
+};
+
+/* ---------- Admin ---------- */
+let A={users:[],entries:[],adjs:[],results:[],tab:"req",fm:"all",fw:"cur",aw:"cur"};
+function startAdmin(){
+  view('<div id="admRoot" class="card"><p>Loading…</p></div>');
+  const rd=()=>drawAdmin();
+  unsubs.push(onSnapshot(collection(db,"users"),s=>{A.users=s.docs.map(d=>Object.assign({id:d.id},d.data()));rd()}));
+  unsubs.push(onSnapshot(query(collection(db,"entries"),orderBy("ts","desc"),limit(1500)),s=>{A.entries=s.docs.map(mapE);rd()}));
+  unsubs.push(onSnapshot(collection(db,"adjustments"),s=>{A.adjs=s.docs.map(mapA).sort((a,b)=>b.ms-a.ms);rd()}));
+  unsubs.push(onSnapshot(collection(db,"results"),s=>{A.results=s.docs.map(d=>d.data());rd()}));
+  unsubs.push(onSnapshot(doc(db,"config","settings"),s=>{if(s.exists())S=Object.assign(JSON.parse(JSON.stringify(DEF)),s.data());rd()}));
+}
+window.setTab=t=>{A.tab=t;drawAdmin(true)};
+window.setF=(k,v)=>{A[k]=v;drawAdmin(true)};
+const approved=()=>A.users.filter(u=>u.status==="approved");
+function drawAdmin(force){
+  const a=document.activeElement;
+  if(!force&&a&&/INPUT|SELECT|TEXTAREA/.test(a.tagName)&&$("admBody")&&$("admBody").contains(a))return;
+  const pend=A.users.filter(u=>u.status==="pending");
+  const tabs=[["req","Requests"+(pend.length?" ("+pend.length+")":"")],["board","Live board"],["review","Review"],["adj","Adjust"],["team","Team & settings"]].map(t=>`<button class="${A.tab===t[0]?"":"sec"}" onclick="setTab('${t[0]}')">${t[1]}</button>`).join("");
+  view(`<div id="admRoot">${head("Admin · only you can see this",'<button class="sec" onclick="logout()">Sign out</button>')}<div class="tabs">${tabs}</div><div id="admBody">${adminBody(pend)}</div></div>`);
+}
+function adminBody(pend){
+  const now=Date.now(),cw=weekOf(now),lw=addD(cw,-7);
+  const roleSel=(id,r)=>`<select id="${id}" style="width:auto">${Object.keys(ROLES).map(k=>`<option value="${k}"${k===r?" selected":""}>${ROLES[k].label}</option>`).join("")}</select>`;
+  if(A.tab==="req"){
+    return`<div class="card"><h2>Pending requests</h2>${pend.length?`<div class="scroll"><table><thead><tr><th>Name</th><th>Role</th><th>Action</th></tr></thead><tbody>${pend.map(u=>`<tr><td><b>${esc(u.name)}</b></td><td>${roleSel("r_"+u.id,u.role)}</td><td><button class="ok sm" onclick="setUser('${u.id}','approved')">Approve</button><button class="no sm" onclick="setUser('${u.id}','rejected')">Reject</button></td></tr>`).join("")}</tbody></table></div>`:"<p>No pending requests.</p>"}<p>Approve only names you recognise as your real employees.</p></div>`;
+  }
+  if(A.tab==="board"){
+    const rows=computeRows(cw,A.users,A.entries,A.adjs),ds=[0,1,2,3,4,5,6].map(n=>addD(cw,n));
+    const published=A.results.find(r=>r.week===lw);
+    return`<div class="card"><div class="row"><h2>Live board · week of ${cw}</h2><span style="font-size:.78rem;color:var(--mu)">Employees cannot see this</span></div><div class="scroll"><table><thead><tr><th>Member</th><th>Role</th>${["Mon","Tue","Wed","Thu","Fri","Sat","Sun"].map(d=>`<th>${d}</th>`).join("")}<th>Late</th><th>Points</th><th>Score</th><th>Last entry</th></tr></thead><tbody>${rows.map(r=>{const es=A.entries.filter(e=>e.uid===r.uid&&e.week===cw),last=es.reduce((m,e)=>Math.max(m,e.ms),0);return`<tr><td><b>${esc(r.name)}</b></td><td>${ROLES[r.role].label}</td>${ds.map(d=>`<td>${es.filter(e=>e.date===d).length}</td>`).join("")}<td>${es.filter(e=>e.hour>=S.deadlineHour).length}</td><td><b>${r.points}</b></td><td>${r.pct==null?"—":r.pct+"%"}</td><td>${last?fmtT(last):"—"}</td></tr>`}).join("")}</tbody></table></div></div>
+    <div class="card"><h2>Publish last week (${lw})</h2><p>${published?"Already published. Publishing again overwrites it.":"Not published yet. Review and flag entries first, then publish. Employees see results only after this."}</p><button onclick="publish('${lw}')">${published?"Re-publish":"Publish"} results for ${lw}</button><div class="err" id="pe"></div></div>`;
+  }
+  if(A.tab==="review"){
+    const mem=approved(),wkSet=A.fw==="cur"?cw:lw;
+    let es=A.entries.filter(e=>e.week===wkSet&&(A.fm==="all"||e.uid===A.fm)).slice(0,200);
+    const btn=(id,k,l,c)=>`<button class="sm ${c||"sec"}" onclick="act('${id}','${k}')">${l}</button>`;
+    const actions=e=>{
+      if(e.type==="lead")return(e.status==="wrong"?btn(e.id,"undo","Undo wrong"):btn(e.id,"wrong","Wrong data (−2)","no"))+btn(e.id,"conv",e.converted?"Unmark converted":"Converted (+10)");
+      if(e.type==="pitch")return e.status==="fake"?btn(e.id,"undo","Undo"):btn(e.id,"fake","Fake (−5)","no");
+      if(e.type==="call_booked")return e.status!=="submitted"?btn(e.id,"undo","Undo"):btn(e.id,"missed","Missed (−5)","no")+btn(e.id,"fake","Fake (−5)","no");
+      if(e.type==="client_closed")return e.status==="submitted"?btn(e.id,"confirm","Confirm (+25)","ok")+btn(e.id,"cancel","Cancelled (−15)","no"):e.status==="confirmed"?btn(e.id,"cancel","Cancelled (−15)","no")+btn(e.id,"undo","Undo"):btn(e.id,"undo","Undo");
+      if(e.type==="site")return(e.status==="accepted"?btn(e.id,"undo","Undo")+btn(e.id,"bug1","+ Bug (−5)","no")+btn(e.id,"bug0","− Bug"):e.status==="submitted"?btn(e.id,"accept","Accept","ok")+btn(e.id,"reject","Reject","no"):btn(e.id,"undo","Undo"))+btn(e.id,"deadline","Deadline");
+      return"";
+    };
+    return`<div class="card"><h2>Review entries</h2><div class="row" style="margin-bottom:10px"><select style="width:auto" onchange="setF('fm',this.value)"><option value="all">All members</option>${mem.map(u=>`<option value="${u.id}"${A.fm===u.id?" selected":""}>${esc(u.name)}</option>`).join("")}</select><select style="width:auto" onchange="setF('fw',this.value)"><option value="cur"${A.fw==="cur"?" selected":""}>This week</option><option value="last"${A.fw==="last"?" selected":""}>Last week</option></select></div><div class="scroll"><table><thead><tr><th>Time (IST)</th><th>Member</th><th>Entry</th><th>Status</th><th>Actions</th></tr></thead><tbody>${es.map(e=>{const t=tagFor(e.status);return`<tr><td>${fmtT(e.ms)}${e.hour>=S.deadlineHour&&e.type==="lead"?' <span class="tag y">late</span>':""}</td><td><b>${esc(e.name)}</b></td><td class="w">${esc(ROLES[e.role]?ROLES[e.role].types[e.type].label+": ":"")}${esc(Object.values(e.data).filter(Boolean).join(" · "))}${e.converted?' <span class="tag g">converted</span>':""}${e.bugs?` <span class="tag r">${e.bugs} bug${e.bugs>1?"s":""}</span>`:""}${e.type==="site"&&e.deadline?` <span class="tag">due ${esc(e.deadline)}</span>`:""}</td><td><span class="tag ${t[0]}">${t[1]}</span></td><td>${actions(e)}</td></tr>`}).join("")}</tbody></table></div>${es.length?"":"<p>No entries.</p>"}</div>`;
+  }
+  if(A.tab==="adj"){
+    const mem=approved();
+    return`<div class="card"><h2>Manual adjustment</h2><p>Use for things like untouched leads, missed follow-ups or bonuses. A written reason is required, and the employee can see it and dispute it.</p><label>Member</label><select id="am">${mem.map(u=>`<option value="${u.id}">${esc(u.name)}</option>`).join("")}</select><label>Points (use − for a penalty)</label><input id="ap" type="number" step="0.5" placeholder="e.g. -5"><label>Reason</label><textarea id="ar" rows="2"></textarea><label>Applies to week</label><select id="aw"><option value="${cw}">This week (${cw})</option><option value="${lw}">Last week (${lw})</option></select><div style="margin-top:14px"><button onclick="addAdj()">Add adjustment</button></div><div class="err" id="ae2"></div></div>
+    <div class="card"><h2>Recent adjustments</h2><div class="scroll"><table><thead><tr><th>When</th><th>Member</th><th>Pts</th><th>Reason</th><th>Employee dispute</th></tr></thead><tbody>${A.adjs.slice(0,40).map(x=>`<tr><td>${fmtT(x.ms)}</td><td>${esc(x.name)}</td><td>${x.points}</td><td class="w">${esc(x.reason)}</td><td class="w">${x.dispute?'<span class="tag y">disputed</span> '+esc(x.dispute):"—"}</td></tr>`).join("")}</tbody></table></div></div>`;
+  }
+  const us=A.users.slice().sort((a,b)=>a.name.localeCompare(b.name));
+  return`<div class="card"><h2>Team</h2><div class="scroll"><table><thead><tr><th>Name</th><th>Role</th><th>Status</th><th>Action</th></tr></thead><tbody>${us.map(u=>`<tr><td><b>${esc(u.name)}</b></td><td>${roleSel("r_"+u.id,u.role)}</td><td><span class="tag ${u.status==="approved"?"g":u.status==="pending"?"y":"r"}">${u.status}</span></td><td>${u.status==="approved"?`<button class="sm sec" onclick="setUser('${u.id}','approved')">Save role</button><button class="no sm" onclick="setUser('${u.id}','rejected')">Revoke</button>`:`<button class="ok sm" onclick="setUser('${u.id}','approved')">Approve</button>`}</td></tr>`).join("")}</tbody></table></div><p style="margin-top:10px">Forgot password? Delete that person's login in Firebase Console → Authentication → Users, then they register again and you approve them.</p></div>
+  <div class="card"><h2>Settings</h2><label>Daily lead quota</label><input id="s_q" type="number" value="${S.quota}"><label>Counted leads cap per day</label><input id="s_c" type="number" value="${S.dailyCap}"><label>Daily deadline (hour, IST, 24h)</label><input id="s_d" type="number" value="${S.deadlineHour}"><label>Max scored pitches per day (sales)</label><input id="s_p" type="number" value="${S.pitchCap}"><label>Weekly target · Lead Research (points)</label><input id="s_tr" type="number" value="${S.targets.research}"><label>Weekly target · Sales (points)</label><input id="s_ts" type="number" value="${S.targets.sales}"><div style="margin-top:14px"><button onclick="saveSettings()">Save settings</button></div><p style="margin-top:10px">Developer target = confirmed deals × 20 points, calculated automatically.</p><div class="err" id="se2"></div></div>`;
+}
+window.setUser=async(id,status)=>{const sel=$("r_"+id);const p={status:status};if(sel)p.role=sel.value;try{await updateDoc(doc(db,"users",id),p)}catch(e){alert("Could not save. Try again.")}};
+window.act=async(id,k)=>{
+  const e=A.entries.find(x=>x.id===id);if(!e)return;
+  const P={wrong:{status:"wrong"},fake:{status:"fake"},missed:{status:"missed"},confirm:{status:"confirmed"},cancel:{status:"cancelled"},accept:{status:"accepted"},reject:{status:"rejected"},undo:{status:"submitted"},conv:{converted:!e.converted},bug1:{bugs:e.bugs+1},bug0:{bugs:Math.max(0,e.bugs-1)}};
+  let p=P[k];
+  if(k==="deadline"){const v=prompt("New deadline (YYYY-MM-DD)",e.deadline);if(!v||!/^\d{4}-\d{2}-\d{2}$/.test(v))return;p={deadline:v}}
+  try{await updateDoc(doc(db,"entries",id),p)}catch(x){alert("Could not save. Try again.")}
+};
+window.addAdj=async()=>{
+  const uid=$("am").value,pts=Number($("ap").value),why=$("ar").value.trim(),er=$("ae2"),u=A.users.find(x=>x.id===uid);
+  if(!uid||!$("ap").value||isNaN(pts)||!why){er.textContent="Choose a member, enter points and a reason.";return}
+  try{await addDoc(collection(db,"adjustments"),{uid:uid,name:u.name,points:pts,reason:why.slice(0,300),week:$("aw").value,ts:serverTimestamp()});$("ap").value="";$("ar").value="";er.className="err good";er.textContent="Added ✔"}
+  catch(e){er.className="err";er.textContent="Could not save."}
+};
+window.saveSettings=async()=>{
+  const n=id=>Number($(id).value),v={quota:n("s_q"),dailyCap:n("s_c"),deadlineHour:n("s_d"),pitchCap:n("s_p"),targets:{research:n("s_tr"),sales:n("s_ts")}};
+  if(Object.values(v).some(x=>typeof x==="number"&&(isNaN(x)||x<=0))||isNaN(v.targets.research)||isNaN(v.targets.sales)||v.deadlineHour>23){$("se2").textContent="Enter valid positive numbers.";return}
+  try{await setDoc(doc(db,"config","settings"),v);$("se2").className="err good";$("se2").textContent="Saved ✔"}catch(e){$("se2").className="err";$("se2").textContent="Could not save."}
+};
+window.publish=async w=>{
+  if(!confirm("Publish results for the week of "+w+"? Employees will see them."))return;
+  try{await setDoc(doc(db,"results",w),{week:w,rows:computeRows(w,A.users,A.entries,A.adjs),publishedAt:serverTimestamp()});$("pe").className="err good";$("pe").textContent="Published ✔"}
+  catch(e){$("pe").className="err";$("pe").textContent="Could not publish."}
+};
+</script>
+</body>
+</html>
